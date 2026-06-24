@@ -231,12 +231,12 @@ window.addEventListener('keyup', e => {
 });
 function canvasXY(cx, cy) { const r = canvas.getBoundingClientRect(); return { x: (cx - r.left) * (W / r.width), y: (cy - r.top) * (H / r.height) }; }
 function buttonRects() {
-  const s = 96, m = 14, b = H - s - m;
-  return { left: { x: m, y: b, w: s, h: s, label: '◀' }, right: { x: m + s + 12, y: b, w: s, h: s, label: '▶' },
-    attack: { x: W - m - s, y: b, w: s, h: s, label: '🏐' }, jump: { x: W - m - s * 2 - 12, y: b, w: s, h: s, label: '⤒' },
-    ult: { x: W - m - s, y: b - 70, w: s, h: 62, label: '🏀' } };
+  const s = 116, m = 16, b = H - s - m, gapLR = 48;   // крупнее + большой зазор между ◀ и ▶
+  return { left: { x: m, y: b, w: s, h: s, label: '◀' }, right: { x: m + s + gapLR, y: b, w: s, h: s, label: '▶' },
+    attack: { x: W - m - s, y: b, w: s, h: s, label: '🏐' }, jump: { x: W - m - s * 2 - 14, y: b, w: s, h: s, label: '⤒' },
+    ult: { x: W - m - s, y: b - 78, w: s, h: 70, label: '🏀' } };
 }
-function regionAt(x, y) { const r = buttonRects(); for (const k in r) { const b = r[k]; if (x >= b.x - 6 && x <= b.x + b.w + 6 && y >= b.y - 6 && y <= b.y + b.h + 6) return k; } return null; }
+function regionAt(x, y) { const r = buttonRects(); for (const k in r) { const b = r[k]; if (x >= b.x - 4 && x <= b.x + b.w + 4 && y >= b.y - 4 && y <= b.y + b.h + 4) return k; } return null; }
 function pauseButtons() { const bw = 300, bh = 48, cx = W / 2 - bw / 2, y0 = H / 2 - 34; return { resume: { x: cx, y: y0, w: bw, h: bh, label: '▶  Продолжить (Esc)' }, restart: { x: cx, y: y0 + 58, w: bw, h: bh, label: '↻  Начать сначала (R)' }, lobby: { x: cx, y: y0 + 116, w: bw, h: bh, label: '⌂  Выйти в лобби (L)' } }; }
 function pausePointer(x, y) { const b = pauseButtons(); const hit = k => x > b[k].x && x < b[k].x + b[k].w && y > b[k].y && y < b[k].y + b[k].h; if (hit('resume')) state = 'playing'; else if (hit('restart')) startGame(); else if (hit('lobby')) state = 'select'; }
 function menuPointer(x, y) {
@@ -1063,7 +1063,7 @@ function drawHUD() {
 }
 function drawTouchButtons() {
   if (!touchMode) return; const r = buttonRects();
-  for (const k in r) { const b = r[k]; const dim = (k === 'ult' && player.ult < ULT_FULL); ctx.globalAlpha = dim ? 0.4 : 1; ctx.fillStyle = (k === 'ult' && !dim) ? 'rgba(255,154,60,0.3)' : 'rgba(255,255,255,0.13)'; roundRectPath(b.x, b.y, b.w, b.h, 16); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 2; roundRectPath(b.x, b.y, b.w, b.h, 16); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = (k === 'ult' ? '24px' : '28px') + ' Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 2); ctx.globalAlpha = 1; }
+  for (const k in r) { const b = r[k]; const dim = (k === 'ult' && player.ult < ULT_FULL); ctx.globalAlpha = dim ? 0.4 : 1; ctx.fillStyle = (k === 'ult' && !dim) ? 'rgba(255,154,60,0.34)' : 'rgba(255,255,255,0.16)'; roundRectPath(b.x, b.y, b.w, b.h, 20); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.42)'; ctx.lineWidth = 2.5; roundRectPath(b.x, b.y, b.w, b.h, 20); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = (k === 'ult' ? '34px' : '42px') + ' Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 2); ctx.globalAlpha = 1; }
   ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
 }
 function drawPauseScreen() {
