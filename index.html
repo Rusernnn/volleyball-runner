@@ -6,11 +6,11 @@
 <title>Волейбол-Квест</title>
 <style>
   html, body {
-    margin: 0; height: 100%;
+    margin: 0; height: 100%; height: 100dvh;
     background: radial-gradient(120% 120% at 50% 0%, #2a2d4a 0%, #14131f 60%, #0b0a12 100%);
     font-family: -apple-system, "Segoe UI", Arial, sans-serif;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    user-select: none; -webkit-user-select: none; overflow: hidden;
+    user-select: none; -webkit-user-select: none; overflow: hidden; touch-action: none;
   }
   h1 { color: #eef; margin: 8px 0 2px; font-size: 20px; letter-spacing: .5px; text-shadow: 0 2px 8px rgba(0,0,0,.5); }
   p.hint { color: #9aa0c0; margin: 0 0 8px; font-size: 13px; text-align: center; }
@@ -44,6 +44,24 @@ const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
 const GROUND_Y = 472;
 const GRAVITY = 0.8;
+
+// ---- адаптация под телефон: вписываем игру в реально видимую область (учёт шторки/панелей браузера) ----
+const _h1 = document.querySelector('h1'), _hint = document.querySelector('p.hint');
+function fitGame() {
+  const vv = window.visualViewport;
+  const vw = vv ? vv.width : window.innerWidth;
+  const vh = vv ? vv.height : window.innerHeight;
+  document.body.style.height = vh + 'px';
+  const reserved = (_h1 && _h1.offsetParent !== null ? _h1.offsetHeight : 0) + (_hint && _hint.offsetParent !== null ? _hint.offsetHeight : 0) + 12;
+  const availH = Math.max(140, vh - reserved), availW = vw - 6, aspect = 960 / 540;
+  const w = Math.min(availW, availH * aspect, 960);
+  canvas.style.width = w + 'px';
+  canvas.style.height = (w / aspect) + 'px';
+}
+window.addEventListener('resize', () => setTimeout(fitGame, 60));
+window.addEventListener('orientationchange', () => setTimeout(fitGame, 250));
+if (window.visualViewport) { window.visualViewport.addEventListener('resize', fitGame); window.visualViewport.addEventListener('scroll', fitGame); }
+setTimeout(fitGame, 0);
 
 /* ===================== ПЕРСОНАЖИ (ФОТО) ===================== */
 const characters = [
@@ -188,7 +206,7 @@ window.addEventListener('keydown', e => {
   unlockAudio();
   if (e.code === 'KeyM') { muted = !muted; return; }
   if (e.code === 'Escape') { if (state === 'playing') state = 'paused'; else if (state === 'paused') state = 'playing'; return; }
-  if (state === 'paused') { if (e.code === 'KeyR') startGame(); return; }
+  if (state === 'paused') { if (e.code === 'KeyR') startGame(); else if (e.code === 'KeyL') state = 'select'; return; }
   if (state === 'select') {
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') { e.preventDefault(); selIdx = (selIdx + characters.length - 1) % characters.length; return; }
     if (e.code === 'ArrowRight' || e.code === 'KeyD') { e.preventDefault(); selIdx = (selIdx + 1) % characters.length; return; }
@@ -219,8 +237,8 @@ function buttonRects() {
     ult: { x: W - m - s, y: b - 70, w: s, h: 62, label: '🏀' } };
 }
 function regionAt(x, y) { const r = buttonRects(); for (const k in r) { const b = r[k]; if (x >= b.x - 6 && x <= b.x + b.w + 6 && y >= b.y - 6 && y <= b.y + b.h + 6) return k; } return null; }
-function pauseButtons() { const bw = 300, bh = 50, cx = W / 2 - bw / 2; return { resume: { x: cx, y: H / 2 - 2, w: bw, h: bh, label: '▶  Продолжить (Esc)' }, restart: { x: cx, y: H / 2 + 60, w: bw, h: bh, label: '↻  Начать сначала (R)' } }; }
-function pausePointer(x, y) { const b = pauseButtons(); if (x > b.resume.x && x < b.resume.x + b.resume.w && y > b.resume.y && y < b.resume.y + b.resume.h) state = 'playing'; else if (x > b.restart.x && x < b.restart.x + b.restart.w && y > b.restart.y && y < b.restart.y + b.restart.h) startGame(); }
+function pauseButtons() { const bw = 300, bh = 48, cx = W / 2 - bw / 2, y0 = H / 2 - 34; return { resume: { x: cx, y: y0, w: bw, h: bh, label: '▶  Продолжить (Esc)' }, restart: { x: cx, y: y0 + 58, w: bw, h: bh, label: '↻  Начать сначала (R)' }, lobby: { x: cx, y: y0 + 116, w: bw, h: bh, label: '⌂  Выйти в лобби (L)' } }; }
+function pausePointer(x, y) { const b = pauseButtons(); const hit = k => x > b[k].x && x < b[k].x + b[k].w && y > b[k].y && y < b[k].y + b[k].h; if (hit('resume')) state = 'playing'; else if (hit('restart')) startGame(); else if (hit('lobby')) state = 'select'; }
 function menuPointer(x, y) {
   if (state === 'select') { const slots = selectSlots(); for (let i = 0; i < slots.length; i++) { const s = slots[i]; if (x > s.bx - 18 && x < s.bx + s.size + 18) { selIdx = i; break; } } startGame(); }
   else if (state === 'over' || state === 'win') state = 'select';
@@ -287,10 +305,13 @@ function buildLevel(i) {
   const inInt = (x) => interiors.some(it => x > it.x - 40 && x < it.x + it.w + 40);
 
   if (b.houses) for (let x = 600; x < len - 500; x += 760 + r() * 360) { const hw = 150 + r() * 50, hh = 150 + r() * 50; houses.push({ x, w: hw, h: hh, hue: 20 + r() * 40, used: false, door: { x: x + hw / 2 - 22, y: GROUND_Y - 64, w: 44, h: 64 } }); }
-  if (b.cars) { const cc = ['#d23b3b','#3b6dd2','#e0a020','#2aa75a','#8a3bd2','#cc5599']; for (let k = 0; k < 4; k++) { const fast = k === 0; hazards.push({ kind: 'car', x: 760 + k * (len / 5), y: GROUND_Y - 44, w: fast ? 104 : 92, h: 44, vx: -((fast ? 15 : 7.5) + r() * 2.0), dmg: 14, color: fast ? '#ff4dc4' : cc[k % cc.length], fast, seen: false }); } }
+  if (b.cars) { const cc = ['#d23b3b','#3b6dd2','#e0a020','#2aa75a','#8a3bd2','#cc5599']; for (let k = 0; k < 4; k++) { const fast = k === 0; hazards.push({ kind: 'car', x: 760 + k * (len / 5), y: GROUND_Y - 44, w: fast ? 104 : 92, h: 44, vx: -((fast ? 10.5 : 7.5) + r() * 2.0), dmg: 14, color: fast ? '#ff4dc4' : cc[k % cc.length], fast, seen: false }); } }
   if (b.props) { let px = 720; while (px < len - 620) { const kind = b.props[Math.floor(r() * b.props.length)]; const d = PROP_DIM[kind]; if (!inInt(px)) props.push({ kind, x: px, y: GROUND_Y - d.h, w: d.w, h: d.h, seed: r() }); px += 520 + r() * 520; } }
   // мебель внутри зданий: стол (перепрыгнуть), плита (нельзя вставать — жжётся), холодильник, стул
-  for (const it of interiors) { const fl = ['table', 'stove', 'fridge', 'chair', 'table', 'stove']; let fx = it.x + 90, fi = Math.floor(r() * 5); while (fx < it.x + it.w - 100) { const kind = fl[fi % fl.length], d = PROP_DIM[kind]; props.push({ kind, x: fx, y: GROUND_Y - d.h, w: d.w, h: d.h, dmg: d.dmg || 0, seed: r() }); fx += 150 + r() * 60; fi++; } }
+  for (const it of interiors) { const fl = ['table', 'stove', 'fridge', 'chair', 'table', 'stove']; let fx = it.x + 90, fi = Math.floor(r() * 5); while (fx < it.x + it.w - 100) { const kind = fl[fi % fl.length], d = PROP_DIM[kind]; props.push({ kind, x: fx, y: GROUND_Y - d.h, w: d.w, h: d.h, dmg: d.dmg || 0, seed: r() }); fx += 150 + r() * 60; fi++; }
+    // дом-убежище: 2 сердечка внутри
+    pickups.push({ x: it.x + it.w * 0.3, y: GROUND_Y - 74, type: 'heart', bob: r() * 6.28, taken: false });
+    pickups.push({ x: it.x + it.w * 0.7, y: GROUND_Y - 74, type: 'heart', bob: r() * 6.28, taken: false }); }
   if (b.props && b.props.indexOf('net') >= 0) { const d = PROP_DIM.net; props.push({ kind: 'net', x: Math.floor(len * 0.3), y: GROUND_Y - d.h, w: d.w, h: d.h }); }   // гарантированная волейбольная сетка
 
   if (b.key !== 'lair') {
@@ -325,13 +346,13 @@ function gameWin() { state = 'win'; newRecord = Math.floor(score) > best; best =
 function tryThrow() {
   if (state !== 'playing' || player.atkCd > 0 || player.reload > 0 || player.ammo <= 0) return;
   player.ammo--; player.atkCd = ATK_CD;
-  projectiles.push({ x: player.x + player.w / 2 + player.facing * 20, y: player.y + 48, vx: player.facing * THROW_SPEED, vy: -1.0, r: 13, rot: 0, life: 120 });
+  for (const dir of [1, -1]) projectiles.push({ x: player.x + player.w / 2 + dir * 20, y: player.y + 48, vx: dir * THROW_SPEED, vy: -1.0, r: 13, rot: 0, life: 120 });   // два мяча в обе стороны = один бросок
   sfx.throw(); if (player.ammo <= 0) { player.reload = RELOAD; sfx.reload(); }
 }
 function tryUlt() {
   if (state !== 'playing' || player.ult < ULT_FULL) return;
   player.ult = 0;
-  projectiles.push({ x: player.x + player.w / 2 + player.facing * 22, y: player.y + 42, vx: player.facing * 15, vy: -1.4, r: 22, rot: 0, life: 150, kind: 'basket', hit: [] });
+  for (const dir of [1, -1]) projectiles.push({ x: player.x + player.w / 2 + dir * 22, y: player.y + 42, vx: dir * 15, vy: -1.4, r: 22, rot: 0, life: 150, kind: 'basket', hit: [] });   // два баскетбольных мяча в обе стороны
   sfx.ultBall(); camera.shake = 6;
   for (let k = 0; k < 10; k++) particles.push({ x: player.x + player.w / 2, y: player.y + 42, vx: player.facing * (2 + Math.random() * 3), vy: (Math.random() - 0.5) * 3, life: 18, size: 3, color: '#ffae3c', kind: 'bit' });
 }
@@ -424,6 +445,8 @@ function update() {
     else if (m.move === 'boss') { updateBoss(m, dir, dist); }
     if (m.move === 'hop' || m.move === 'crawl' || m.move === 'ranged') propCollision(m, false);
     if (m.x < 0) m.x = 0; if (m.x + m.w > level.len) m.x = level.len - m.w;
+    // монстры не заходят в дом-убежище
+    for (const it of level.interiors) { if (m.x + m.w > it.x && m.x < it.x + it.w) { if (m.x + m.w / 2 < it.x + it.w / 2) m.x = it.x - m.w; else m.x = it.x + it.w; m.vx = 0; } }
     if (aabb(player, m)) hurtPlayer(m.dmg, m.x + m.w / 2);
   }
 
@@ -439,6 +462,8 @@ function update() {
 
   for (const hz of level.hazards) {
     hz.x += hz.vx;
+    // машины не заезжают в дом: доезжают до него и появляются с другой стороны
+    for (const it of level.interiors) { if (hz.x + hz.w > it.x - 14 && hz.x < it.x + it.w + 14) hz.x = (hz.vx < 0) ? it.x - hz.w - 14 : it.x + it.w + 14; }
     const onScreen = hz.x > camera.x - 40 && hz.x < camera.x + W + 40;
     if (onScreen && !hz.seen) { hz.seen = true; if (hz.fast) sfx.carScream(); }   // только быстрая машина кричит, обычные едут молча
     else if (!onScreen) hz.seen = false;
@@ -1043,9 +1068,9 @@ function drawTouchButtons() {
 }
 function drawPauseScreen() {
   ctx.fillStyle = 'rgba(10,10,20,0.7)'; ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = 'bold 44px -apple-system, Arial'; ctx.fillText('⏸ Пауза', W / 2, H / 2 - 70);
+  ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; ctx.font = 'bold 40px -apple-system, Arial'; ctx.fillText('⏸ Пауза', W / 2, H / 2 - 84);
   const b = pauseButtons();
-  for (const k of ['resume', 'restart']) { const bb = b[k]; ctx.fillStyle = 'rgba(255,255,255,0.12)'; roundRectPath(bb.x, bb.y, bb.w, bb.h, 12); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; roundRectPath(bb.x, bb.y, bb.w, bb.h, 12); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = '18px -apple-system, Arial'; ctx.fillText(bb.label, bb.x + bb.w / 2, bb.y + bb.h / 2 + 6); }
+  for (const k of ['resume', 'restart', 'lobby']) { const bb = b[k]; ctx.fillStyle = 'rgba(255,255,255,0.12)'; roundRectPath(bb.x, bb.y, bb.w, bb.h, 12); ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; roundRectPath(bb.x, bb.y, bb.w, bb.h, 12); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = '18px -apple-system, Arial'; ctx.fillText(bb.label, bb.x + bb.w / 2, bb.y + bb.h / 2 + 6); }
   ctx.textAlign = 'left';
 }
 
